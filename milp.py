@@ -46,6 +46,8 @@ discharge_to_3 = {t: pulp.LpVariable(f"discharge_to_3_{t}", 0, max_discharge_rat
 energy_level = {t: pulp.LpVariable(f"energy_level_{t}", 0, max_storage) for t in range(T)}
 discharge_allowed = {t: pulp.LpVariable(f"discharge_allowance_{t}", 0, 1, pulp.LpBinary) for t in range(T)}
 
+print(">> Charging/discharging variables added successfully")
+
 # Objective function
 model += pulp.lpSum([
     - (charge_from_1[t] * market_1_prices[t] * charge_efficiency) +
@@ -72,6 +74,8 @@ for t in range(T):
     model += charge_from_1[t] + charge_from_2[t] + charge_from_3[t] <= max_charge_rate, f"Total_Charge_Rate_Constraint_at_{t}"
     model += discharge_to_1[t] + discharge_to_2[t] + discharge_to_3[t] <= max_discharge_rate, f"Total_Discharge_Rate_Constraint_at_{t}"
 
+print(">> Energy trading constraints added successfully")
+
 # SoC dynamics
 model += energy_level[0] == charge_from_1[0] * charge_efficiency + charge_from_2[0] * charge_efficiency + charge_from_3[0] * charge_efficiency
 
@@ -91,6 +95,8 @@ for t in range(T):
     model += discharge_to_2[t] <= max_discharge_rate * discharge_allowed[t]
     model += discharge_to_3[t] <= max_discharge_rate * discharge_allowed[t]
 
+print(">> State-of-Charge variables and constraints added successfully")
+
 # Preventing simultaneous charge/discharge across the three markets
 
 # Define binary charge indicator for each timestep
@@ -106,7 +112,7 @@ for t in range(T):
     model += discharge_to_2[t] <= max_discharge_rate * (1 - charge_indicator[t])
     model += discharge_to_3[t] <= max_discharge_rate * (1 - charge_indicator[t])
 
-print(">> Charging/discharging variables and constraints added successfully!")
+print(">> Charging/discharging constraints added successfully")
 
 # According to definition:
 # one cycle is defined as charging up to max storage volume and then discharging all stored energy. This does not have
@@ -135,7 +141,7 @@ for t in range(1, T):
 # Ensure the total number of cycles does not exceed the maximum allowed
 model += cycle_count[T - 1] <= max_cycles, "Max_Cycles_Constraint"
 
-print(">> Cycle counts variables and constraints added successfully!")
+print(">> Cycle counts variables and constraints added successfully")
 
 # Solve the problem with optimality gap equals to 0.3
 model.solve(pulp.PULP_CBC_CMD(gapRel=0.3))
@@ -149,20 +155,6 @@ charge_values_3 = {t: charge_from_3[t].varValue for t in range(T)}
 discharge_values_3 = {t: discharge_to_3[t].varValue for t in range(T)}
 energy_levels = {t: energy_level[t].varValue for t in range(T)}
 
-# Calculate revenue for each market
-revenue_1 = sum([-charge_values_1[t] * market_1_prices[t] * charge_efficiency +
-                 discharge_values_1[t] * market_1_prices[t] / discharge_efficiency for t in range(T)])
-
-revenue_2 = sum([-charge_values_2[t] * market_2_prices[t] * charge_efficiency +
-                 discharge_values_2[t] * market_2_prices[t] / discharge_efficiency for t in range(T)])
-
-revenue_3 = sum([-charge_values_3[t] * market_3_prices[int(t/48)] * charge_efficiency +
-                 discharge_values_3[t] * market_3_prices[int(t/48)] / discharge_efficiency for t in range(T)])
-
-# Total revenue
-total_revenue = revenue_1 + revenue_2 + revenue_3
-print("Total Revenue: £", total_revenue)
-
 # Load the half-hourly charging/discharging and SoC to a dataframe and save it to a CSV file
 df = pd.DataFrame(
     [
@@ -172,10 +164,8 @@ df = pd.DataFrame(
 )
 df = df.T
 df.columns = ['SoC', 'C1', 'C2', 'C3', 'D1', 'D2', 'D3']
-df.to_csv("MILP_BEST.csv")
+df.to_csv("MILP.csv")
 
 e = time.time()
 runtime = e - st
 print(f"Runtime: {runtime:.2f} seconds")
-
-print()
